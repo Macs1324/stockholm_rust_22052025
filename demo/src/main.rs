@@ -20,6 +20,7 @@ fn main() {
         .add_systems(Update, render_cells)
         .add_systems(FixedUpdate, game_of_life)
         .add_systems(Update, add_cells_on_keypress)
+        .add_systems(FixedUpdate, orbit)
         .run();
 }
 
@@ -32,6 +33,12 @@ fn render_cells(mut query: Query<(&Cell, &mut Visibility), Changed<Cell>>) {
             }
         }
     }
+}
+
+#[derive(Component)]
+struct Orbit {
+    radius: f32,
+    speed: f32,
 }
 
 #[derive(Component)]
@@ -57,6 +64,10 @@ pub fn setup(
     commands.spawn((
         Name::new("Camera"),
         Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Orbit {
+            radius: 5.0,
+            speed: 0.5,
+        },
         Camera3d::default(),
     ));
 
@@ -80,9 +91,9 @@ pub fn setup(
                         CELL_SIZE - CELL_GAP,
                     ))),
                     Transform::from_xyz(
-                        i as f32 * CELL_SIZE,
-                        j as f32 * CELL_SIZE,
-                        k as f32 * CELL_SIZE,
+                        (i as f32 - GRID_X / 2.0) * CELL_SIZE,
+                        (j as f32 - GRID_Y / 2.0) * CELL_SIZE,
+                        (k as f32 - GRID_Z / 2.0) * CELL_SIZE,
                     ),
                     MeshMaterial3d(materials.add(StandardMaterial {
                         base_color: Color::srgb(0.5, 1.0, 0.6),
@@ -155,5 +166,14 @@ fn add_cells_on_keypress(
             }
             // }
         }
+    }
+}
+
+fn orbit(time: Res<Time>, mut query: Query<(&mut Transform, &Orbit)>) {
+    for (mut transform, orbit) in &mut query.iter_mut() {
+        let angle = time.elapsed_secs() * orbit.speed;
+        transform.translation.x = orbit.radius * angle.cos();
+        transform.translation.z = orbit.radius * angle.sin();
+        transform.look_at(Vec3::ZERO, Vec3::Y);
     }
 }
