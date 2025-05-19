@@ -11,7 +11,20 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, setup)
+        .add_systems(FixedUpdate, render_cells)
+        .add_systems(FixedUpdate, game_of_life)
         .run();
+}
+
+fn render_cells(mut query: Query<(&Cell, &mut Visibility), Changed<Cell>>) {
+    for (cell, mut visibility) in &mut query.iter_mut() {
+        match cell {
+            Cell::Alive => *visibility = Visibility::Visible,
+            Cell::Dead => {
+                *visibility = Visibility::Hidden;
+            }
+        }
+    }
 }
 
 #[derive(Component)]
@@ -63,5 +76,26 @@ pub fn setup(
                 ));
             }
         }
+    }
+}
+
+fn game_of_life(mut query: Query<(&mut Cell, &Transform)>) {
+    for (mut cell, _transform) in &mut query.iter_mut() {
+        *cell = match *cell {
+            Cell::Alive => {
+                if rand::random::<f32>() < 0.5 {
+                    Cell::Dead
+                } else {
+                    Cell::Alive
+                }
+            }
+            Cell::Dead => {
+                if rand::random::<f32>() < 0.5 {
+                    Cell::Alive
+                } else {
+                    Cell::Dead
+                }
+            }
+        };
     }
 }
