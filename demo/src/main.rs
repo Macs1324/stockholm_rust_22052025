@@ -91,14 +91,13 @@ pub fn setup(
     for i in 0..GRID_X as i32 {
         for j in 0..GRID_Y as i32 {
             for k in 0..GRID_Z as i32 {
-                let distance = (((i as f32 - GRID_X / 2.0).powi(2)
+                let distance = ((((i as f32 - GRID_X / 2.0).powi(2)
                     + (j as f32 - GRID_Y / 2.0).powi(2)
                     + (k as f32 - GRID_Z / 2.0).powi(2))
                 .sqrt()
                     / (GRID_X.powi(2) + GRID_Y.powi(2) + GRID_Z.powi(2)).sqrt())
-                    * 2.0;
-
-                println!("Distance: {}", distance);
+                    * 3.0)
+                    .powi(-2);
 
                 commands.spawn((
                     Name::new("Cell"),
