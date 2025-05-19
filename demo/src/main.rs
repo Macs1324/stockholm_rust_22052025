@@ -11,17 +11,28 @@ const GRID_Z: f32 = 30.0;
 const CELL_SIZE: f32 = 0.1;
 const CELL_GAP: f32 = 0.01;
 
-const SPAWN_RADIUS: f32 = 10.0;
+const CAMERA_ORBIT_RADIUS: f32 = 5.0;
+const CAMERA_ORBIT_SPEED: f32 = 0.1;
+
+const TICKER_INTERVAL: f32 = 0.2;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .insert_resource(LifeTicker {
+            timer: Timer::from_seconds(TICKER_INTERVAL, TimerMode::Repeating),
+        })
         .add_systems(Startup, setup)
         .add_systems(Update, render_cells)
         .add_systems(FixedUpdate, game_of_life)
         .add_systems(Update, add_cells_on_keypress)
         .add_systems(FixedUpdate, orbit)
         .run();
+}
+
+#[derive(Resource)]
+struct LifeTicker {
+    timer: Timer,
 }
 
 fn render_cells(mut query: Query<(&Cell, &mut Visibility), Changed<Cell>>) {
@@ -65,8 +76,8 @@ pub fn setup(
         Name::new("Camera"),
         Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
         Orbit {
-            radius: 5.0,
-            speed: 0.5,
+            radius: CAMERA_ORBIT_RADIUS,
+            speed: CAMERA_ORBIT_SPEED,
         },
         Camera3d::default(),
     ));
@@ -80,6 +91,15 @@ pub fn setup(
     for i in 0..GRID_X as i32 {
         for j in 0..GRID_Y as i32 {
             for k in 0..GRID_Z as i32 {
+                let distance = (((i as f32 - GRID_X / 2.0).powi(2)
+                    + (j as f32 - GRID_Y / 2.0).powi(2)
+                    + (k as f32 - GRID_Z / 2.0).powi(2))
+                .sqrt()
+                    / (GRID_X.powi(2) + GRID_Y.powi(2) + GRID_Z.powi(2)).sqrt())
+                    * 2.0;
+
+                println!("Distance: {}", distance);
+
                 commands.spawn((
                     Name::new("Cell"),
                     Cell::Dead,
@@ -96,7 +116,7 @@ pub fn setup(
                         (k as f32 - GRID_Z / 2.0) * CELL_SIZE,
                     ),
                     MeshMaterial3d(materials.add(StandardMaterial {
-                        base_color: Color::srgb(0.5, 1.0, 0.6),
+                        base_color: Color::srgb(0.5 * distance, 1.0 * distance, 0.6 * distance),
                         ..default()
                     })),
                 ));
@@ -105,30 +125,37 @@ pub fn setup(
     }
 }
 
-fn game_of_life(mut query: Query<(&mut Cell, &GridPosition)>) {
-    let mut alive_positions: HashSet<(i32, i32, i32)> = HashSet::new();
+fn game_of_life(
+    mut query: Query<(&mut Cell, &GridPosition)>,
+    time: Res<Time>,
+    mut ticker: ResMut<LifeTicker>,
+) {
+    ticker.timer.tick(time.delta());
+    if ticker.timer.just_finished() {
+        let mut alive_positions: HashSet<(i32, i32, i32)> = HashSet::new();
 
-    for (cell, transform) in query.iter() {
-        match cell {
-            Cell::Alive => {
-                alive_positions.insert((transform.x, transform.y, transform.z));
-            }
-            Cell::Dead => {}
-        }
-    }
-
-    for (mut cell, transform) in query.iter_mut() {
-        let neighbors = neighbor_count(&alive_positions, transform.x, transform.y, transform.z);
-
-        match *cell {
-            Cell::Alive => {
-                if neighbors < 12 || neighbors > 17 {
-                    *cell = Cell::Dead;
+        for (cell, transform) in query.iter() {
+            match cell {
+                Cell::Alive => {
+                    alive_positions.insert((transform.x, transform.y, transform.z));
                 }
+                Cell::Dead => {}
             }
-            Cell::Dead => {
-                if (12..=17).contains(&neighbors) || neighbors == 4 {
-                    *cell = Cell::Alive;
+        }
+
+        for (mut cell, transform) in query.iter_mut() {
+            let neighbors = neighbor_count(&alive_positions, transform.x, transform.y, transform.z);
+
+            match *cell {
+                Cell::Alive => {
+                    if neighbors < 12 || neighbors > 17 {
+                        *cell = Cell::Dead;
+                    }
+                }
+                Cell::Dead => {
+                    if (12..=17).contains(&neighbors) || neighbors == 4 {
+                        *cell = Cell::Alive;
+                    }
                 }
             }
         }
