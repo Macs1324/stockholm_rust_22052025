@@ -185,7 +185,7 @@ fn add_cells_on_keypress(
     if keyboard_input.just_pressed(KeyCode::Space) {
         for (mut cell, _transform) in query.iter_mut() {
             // if transform.translation.distance(Vec3::ZERO) < CELL_SIZE * SPAWN_RADIUS {
-            if rand::random::<f32>() < 0.50 {
+            if rand::random::<f32>() < 0.20 {
                 *cell = Cell::Alive;
             } else {
                 *cell = Cell::Dead;
