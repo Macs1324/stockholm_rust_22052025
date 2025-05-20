@@ -214,10 +214,10 @@ fn orbit(
     mut query: Query<(&mut Transform, &Orbit)>,
     mouse_motion: Res<AccumulatedMouseMotion>,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
+    touches: Res<Touches>,
     time: Res<Time>,
 ) {
     for (mut transform, orbit) in &mut query.iter_mut() {
-        let delta = mouse_motion.delta;
         let current_pos = transform.translation;
         let current_radius = orbit.radius;
 
@@ -225,18 +225,39 @@ fn orbit(
         let mut theta = current_pos.z.atan2(current_pos.x);
         let mut phi = (current_pos.y / current_radius).acos();
 
-        if mouse_buttons.pressed(MouseButton::Left) {
-            // Horizontal mouse movement controls rotation around Y axis
+        // Check if we're interacting with either mouse or touch
+        let is_mouse_active = mouse_buttons.pressed(MouseButton::Left);
+        let is_touch_active = touches.iter().next().is_some();
+
+        if is_mouse_active || is_touch_active {
+            // Get input delta either from mouse or touch
+            let delta = if is_mouse_active {
+                // Use mouse motion
+                mouse_motion.delta
+            } else {
+                // Use touch motion
+                if let Some(touch) = touches.iter().next() {
+                    // Calculate delta from current and previous touch positions
+                    let current_pos = touch.position();
+                    let previous_pos = touch.previous_position();
+                    Vec2::new(
+                        current_pos.x - previous_pos.x,
+                        current_pos.y - previous_pos.y,
+                    )
+                } else {
+                    Vec2::ZERO
+                }
+            };
+
+            // Calculate rotation amounts
             let rotation_y = -delta.x * PAN_SPEED * time.delta_secs();
-            // Vertical mouse movement controls rotation around X axis
             let rotation_x = -delta.y * PAN_SPEED * time.delta_secs();
 
-            // Update angles based on mouse movement
+            // Update angles based on input movement
             theta -= rotation_y;
             phi = (phi + rotation_x).clamp(0.1, std::f32::consts::PI - 0.1);
         } else {
-            // Auto-rotate when mouse is not being used
-            // Only rotate horizontally (around Y axis) for smooth effect
+            // Auto-rotate when there's no input
             theta += time.delta_secs() * orbit.speed;
         }
 
