@@ -1,4 +1,7 @@
-use bevy::{color::palettes::tailwind::CYAN_800, platform::collections::HashSet, prelude::*};
+use bevy::{
+    color::palettes::tailwind::CYAN_800, input::mouse::AccumulatedMouseMotion,
+    platform::collections::HashSet, prelude::*,
+};
 
 const GRID_X: f32 = 45.0;
 const GRID_Y: f32 = 45.0;
@@ -7,10 +10,14 @@ const GRID_Z: f32 = 45.0;
 const CELL_SIZE: f32 = 0.1;
 const CELL_GAP: f32 = 0.01;
 
-const CAMERA_ORBIT_RADIUS: f32 = 7.5;
+const CAMERA_ORBIT_RADIUS: f32 = 12.5;
 const CAMERA_ORBIT_SPEED: f32 = 0.1;
+const PAN_SPEED: f32 = 0.5;
 
-const TICKER_INTERVAL: f32 = 0.05;
+const TICKER_INTERVAL: f32 = 0.1;
+
+#[derive(Event)]
+struct RandomizeGridEvent;
 
 fn main() {
     App::new()
@@ -18,11 +25,13 @@ fn main() {
         .insert_resource(LifeTicker {
             timer: Timer::from_seconds(TICKER_INTERVAL, TimerMode::Repeating),
         })
+        .add_event::<RandomizeGridEvent>()
         .add_systems(Startup, setup)
         .add_systems(Update, render_cells)
         .add_systems(FixedUpdate, game_of_life)
-        .add_systems(Update, add_cells_on_keypress)
+        .add_systems(Update, randomize_on_keypress)
         .add_systems(FixedUpdate, orbit)
+        .add_systems(Update, randomize_grid)
         .run();
 }
 
@@ -66,6 +75,7 @@ pub fn setup(
     mut clear_color: ResMut<ClearColor>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut event: EventWriter<RandomizeGridEvent>,
 ) {
     clear_color.0 = CYAN_800.into();
     commands.spawn((
@@ -118,6 +128,8 @@ pub fn setup(
             }
         }
     }
+
+    event.write(RandomizeGridEvent);
 }
 
 fn game_of_life(
@@ -174,28 +186,66 @@ fn neighbor_count(alive_positions: &HashSet<(i32, i32, i32)>, x: i32, y: i32, z:
     count
 }
 
-fn add_cells_on_keypress(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
+fn randomize_grid(
     mut query: Query<(&mut Cell, &Transform)>,
+    mut event: EventReader<RandomizeGridEvent>,
 ) {
-    if keyboard_input.just_pressed(KeyCode::Space) {
+    for _ in event.read() {
         for (mut cell, _transform) in query.iter_mut() {
-            // if transform.translation.distance(Vec3::ZERO) < CELL_SIZE * SPAWN_RADIUS {
             if rand::random::<f32>() < 0.20 {
                 *cell = Cell::Alive;
             } else {
                 *cell = Cell::Dead;
             }
-            // }
         }
     }
 }
 
-fn orbit(time: Res<Time>, mut query: Query<(&mut Transform, &Orbit)>) {
+fn randomize_on_keypress(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut event: EventWriter<RandomizeGridEvent>,
+) {
+    if keyboard_input.just_pressed(KeyCode::Space) {
+        event.write(RandomizeGridEvent);
+    }
+}
+
+fn orbit(
+    mut query: Query<(&mut Transform, &Orbit)>,
+    mouse_motion: Res<AccumulatedMouseMotion>,
+    mouse_buttons: Res<ButtonInput<MouseButton>>,
+    time: Res<Time>,
+) {
     for (mut transform, orbit) in &mut query.iter_mut() {
-        let angle = time.elapsed_secs() * orbit.speed;
-        transform.translation.x = orbit.radius * angle.cos();
-        transform.translation.z = orbit.radius * angle.sin();
+        let delta = mouse_motion.delta;
+        let current_pos = transform.translation;
+        let current_radius = orbit.radius;
+
+        // Convert current position to spherical angles
+        let mut theta = current_pos.z.atan2(current_pos.x);
+        let mut phi = (current_pos.y / current_radius).acos();
+
+        if mouse_buttons.pressed(MouseButton::Left) {
+            // Horizontal mouse movement controls rotation around Y axis
+            let rotation_y = -delta.x * PAN_SPEED * time.delta_secs();
+            // Vertical mouse movement controls rotation around X axis
+            let rotation_x = -delta.y * PAN_SPEED * time.delta_secs();
+
+            // Update angles based on mouse movement
+            theta -= rotation_y;
+            phi = (phi + rotation_x).clamp(0.1, std::f32::consts::PI - 0.1);
+        } else {
+            // Auto-rotate when mouse is not being used
+            // Only rotate horizontally (around Y axis) for smooth effect
+            theta += time.delta_secs() * orbit.speed;
+        }
+
+        // Convert back to Cartesian coordinates
+        transform.translation.x = orbit.radius * phi.sin() * theta.cos();
+        transform.translation.y = orbit.radius * phi.cos();
+        transform.translation.z = orbit.radius * phi.sin() * theta.sin();
+
+        // Make camera always look at the origin
         transform.look_at(Vec3::ZERO, Vec3::Y);
     }
 }
