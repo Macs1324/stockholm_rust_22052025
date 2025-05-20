@@ -14,7 +14,7 @@ const CELL_GAP: f32 = 0.01;
 const CAMERA_ORBIT_RADIUS: f32 = 5.0;
 const CAMERA_ORBIT_SPEED: f32 = 0.1;
 
-const TICKER_INTERVAL: f32 = 0.2;
+const TICKER_INTERVAL: f32 = 0.15;
 
 fn main() {
     App::new()
@@ -147,7 +147,7 @@ fn game_of_life(
 
             match *cell {
                 Cell::Alive => {
-                    if neighbors < 12 || neighbors > 17 {
+                    if !(12..=17).contains(&neighbors) {
                         *cell = Cell::Dead;
                     }
                 }
