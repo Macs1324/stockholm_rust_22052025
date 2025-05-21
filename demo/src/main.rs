@@ -1,7 +1,4 @@
-use bevy::{
-    color::palettes::tailwind::CYAN_800, input::mouse::AccumulatedMouseMotion,
-    platform::collections::HashSet, prelude::*,
-};
+use bevy::{input::mouse::AccumulatedMouseMotion, platform::collections::HashSet, prelude::*};
 
 const GRID_X: f32 = 45.0;
 const GRID_Y: f32 = 45.0;
@@ -17,7 +14,7 @@ const PAN_SPEED: f32 = 0.2;
 const TICKER_INTERVAL: f32 = 0.1;
 
 #[derive(Event)]
-struct RandomizeGridEvent;
+pub struct RandomizeGridEvent;
 
 fn main() {
     App::new()
