@@ -220,6 +220,7 @@ fn orbit(
     mouse_motion: Res<AccumulatedMouseMotion>,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
     touches: Res<Touches>,
+    mut touch_state: Local<TouchOrbitState>,
     time: Res<Time>,
 ) {
     for (mut transform, orbit) in &mut query.iter_mut() {
@@ -234,34 +235,51 @@ fn orbit(
         let is_mouse_active = mouse_buttons.pressed(MouseButton::Left);
         let is_touch_active = touches.iter().next().is_some();
 
-        if is_mouse_active || is_touch_active {
-            // Get input delta either from mouse or touch
-            let delta = if is_mouse_active {
-                // Use mouse motion
-                mouse_motion.delta
-            } else {
-                // Use accumulated touch motion to match mouse behavior
-                // We'll sum all touch deltas, just like mouse accumulates motion
-                touches.iter().fold(Vec2::ZERO, |acc, touch| {
-                    let current_pos = touch.position();
-                    let previous_pos = touch.previous_position();
-                    acc + Vec2::new(
-                        current_pos.x - previous_pos.x,
-                        current_pos.y - previous_pos.y,
-                    )
-                })
-            };
+        if is_mouse_active {
+            // Use mouse motion directly - it's already accumulated properly
+            let delta = mouse_motion.delta;
 
-            // Calculate rotation amounts - same for both input methods
+            // Calculate rotation amounts
             let rotation_y = -delta.x * PAN_SPEED * time.delta_secs();
             let rotation_x = -delta.y * PAN_SPEED * time.delta_secs();
 
-            // Update angles based on input movement
+            // Update angles based on mouse movement
             theta -= rotation_y;
             phi = (phi + rotation_x).clamp(0.1, std::f32::consts::PI - 0.1);
+
+            // Reset touch state when using mouse
+            touch_state.last_position = None;
+        } else if is_touch_active {
+            // Handle single touch for orbit
+            if let Some(touch) = touches.iter().next() {
+                let current_touch_pos = touch.position();
+
+                // Calculate delta from last frame, not just from previous position
+                // This matches how mouse_motion accumulates over time
+                if let Some(last_pos) = touch_state.last_position {
+                    let delta = Vec2::new(
+                        current_touch_pos.x - last_pos.x,
+                        current_touch_pos.y - last_pos.y,
+                    );
+
+                    // Use the same math as for mouse
+                    let rotation_y = -delta.x * PAN_SPEED * time.delta_secs();
+                    let rotation_x = -delta.y * PAN_SPEED * time.delta_secs();
+
+                    // Update angles based on touch movement
+                    theta -= rotation_y;
+                    phi = (phi + rotation_x).clamp(0.1, std::f32::consts::PI - 0.1);
+                }
+
+                // Save current position for next frame
+                touch_state.last_position = Some(current_touch_pos);
+            }
         } else {
             // Auto-rotate when there's no input
             theta += time.delta_secs() * orbit.speed;
+
+            // Reset touch state when not touching
+            touch_state.last_position = None;
         }
 
         // Convert back to Cartesian coordinates
@@ -272,4 +290,10 @@ fn orbit(
         // Make camera always look at the origin
         transform.look_at(Vec3::ZERO, Vec3::Y);
     }
+}
+
+// Add this struct to track touch state between frames
+#[derive(Default)]
+struct TouchOrbitState {
+    last_position: Option<Vec2>,
 }
