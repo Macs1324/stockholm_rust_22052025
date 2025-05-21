@@ -12,7 +12,7 @@ const CELL_GAP: f32 = 0.01;
 
 const CAMERA_ORBIT_RADIUS: f32 = 12.5;
 const CAMERA_ORBIT_SPEED: f32 = 0.1;
-const PAN_SPEED: f32 = 0.5;
+const PAN_SPEED: f32 = 0.2;
 
 const TICKER_INTERVAL: f32 = 0.1;
 
@@ -77,7 +77,7 @@ pub fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut event: EventWriter<RandomizeGridEvent>,
 ) {
-    clear_color.0 = CYAN_800.into();
+    clear_color.0 = Color::srgb(0.07, 0.1, 0.14);
     commands.spawn((
         Name::new("Camera"),
         Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
@@ -94,6 +94,12 @@ pub fn setup(
         Transform::from_xyz(3.0, 8.0, 5.0),
     ));
 
+    commands.spawn((
+        Name::new("Light"),
+        PointLight::default(),
+        Transform::from_xyz(-3.0, 8.0, -6.0),
+    ));
+
     for i in 0..GRID_X as i32 {
         for j in 0..GRID_Y as i32 {
             for k in 0..GRID_Z as i32 {
@@ -103,7 +109,7 @@ pub fn setup(
                 .sqrt()
                     / (GRID_X.powi(2) + GRID_Y.powi(2) + GRID_Z.powi(2)).sqrt())
                     * 3.0)
-                    .powi(-2);
+                    .powf(-1.2);
 
                 commands.spawn((
                     Name::new("Cell"),
@@ -121,7 +127,7 @@ pub fn setup(
                         (k as f32 - GRID_Z / 2.0) * CELL_SIZE,
                     ),
                     MeshMaterial3d(materials.add(StandardMaterial {
-                        base_color: Color::srgb(0.5 * distance, 1.0 * distance, 0.6 * distance),
+                        base_color: Color::srgb(0.0 * distance, 0.67 * distance, 0.88 * distance),
                         ..default()
                     })),
                 ));
@@ -155,7 +161,7 @@ fn game_of_life(
 
             match *cell {
                 Cell::Alive => {
-                    if !(12..=17).contains(&neighbors) {
+                    if !(12..=18).contains(&neighbors) {
                         *cell = Cell::Dead;
                     }
                 }
@@ -192,7 +198,7 @@ fn randomize_grid(
 ) {
     for _ in event.read() {
         for (mut cell, _transform) in query.iter_mut() {
-            if rand::random::<f32>() < 0.20 {
+            if rand::random::<f32>() < 0.15 {
                 *cell = Cell::Alive;
             } else {
                 *cell = Cell::Dead;
@@ -209,7 +215,6 @@ fn randomize_on_keypress(
         event.write(RandomizeGridEvent);
     }
 }
-
 fn orbit(
     mut query: Query<(&mut Transform, &Orbit)>,
     mouse_motion: Res<AccumulatedMouseMotion>,
@@ -235,21 +240,19 @@ fn orbit(
                 // Use mouse motion
                 mouse_motion.delta
             } else {
-                // Use touch motion
-                if let Some(touch) = touches.iter().next() {
-                    // Calculate delta from current and previous touch positions
+                // Use accumulated touch motion to match mouse behavior
+                // We'll sum all touch deltas, just like mouse accumulates motion
+                touches.iter().fold(Vec2::ZERO, |acc, touch| {
                     let current_pos = touch.position();
                     let previous_pos = touch.previous_position();
-                    Vec2::new(
+                    acc + Vec2::new(
                         current_pos.x - previous_pos.x,
                         current_pos.y - previous_pos.y,
                     )
-                } else {
-                    Vec2::ZERO
-                }
+                })
             };
 
-            // Calculate rotation amounts
+            // Calculate rotation amounts - same for both input methods
             let rotation_y = -delta.x * PAN_SPEED * time.delta_secs();
             let rotation_x = -delta.y * PAN_SPEED * time.delta_secs();
 
